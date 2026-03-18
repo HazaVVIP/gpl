@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-# HAZLER — gql.py (Enhanced)
+# HAZLER — gpl (Enhanced)
 # Phase      : 1-Recon / 2-Weaponize / 3-Access (PoC)
 # ATT&CK     : Discovery   — T1590 — Gather Victim Network Information
 #              Collection  — T1213 — Data from Information Repositories
@@ -7,11 +6,11 @@
 #              Credential  — T1552 — Unsecured Credentials (auth bypass PoC)
 # Objective  : Full GraphQL schema recon + mutation PoC / proof-of-impact
 # Depends on : Network access to GraphQL endpoint
-# Run        : python gql.py --url https://target.com/graphql [OPTIONS]
+# Run        : python main.py --url https://target.com/graphql [OPTIONS]
 
 """
-gql.py — GraphQL Security Tool (v3 — PoC Edition)
-Usage: python gql.py --url https://target.com/graphql [OPTIONS]
+gpl — GraphQL Security Tool (v3 — PoC Edition)
+Usage: python main.py --url https://target.com/graphql [OPTIONS]
 
 v1 → v2:
   - Rate limiting (--delay), nested --generate, batching detection,
@@ -701,8 +700,8 @@ def _build_query_template(schema: dict, field: dict, max_depth: int = 3) -> str:
     )
 
 
-def cmd_query_wizard(url: str, token: str = None, limit: int = 0,
-                     delay: float = 0.0) -> dict:
+def cmd_dbs_wizard(url: str, token: str = None, limit: int = 0,
+                   delay: float = 0.0) -> dict:
     """Interactive wizard to dump selected query templates."""
     hdr("Available Queries")
     schema = fetch_schema(url, token, delay=delay)
@@ -761,8 +760,8 @@ def cmd_query_wizard(url: str, token: str = None, limit: int = 0,
 
 def cmd_dbs(url: str, token: str = None, limit: int = 0,
             delay: float = 0.0) -> dict:
-    """Backward-compatible entrypoint for --dbs wizard mode."""
-    return cmd_query_wizard(url, token, limit, delay=delay)
+    """Entrypoint for --dbs wizard mode."""
+    return cmd_dbs_wizard(url, token, limit, delay=delay)
 
 
 # ── --poc-mutation ─────────────────────────────────────────────────────────────
@@ -1166,10 +1165,10 @@ def save_output(data: dict, path: str):
 
 # ── Help ───────────────────────────────────────────────────────────────────────
 HELP_TEXT = f"""
-{C}{BO}gql.py v2 — GraphQL Security Tool{RST}
+{C}{BO}gpl v3 — GraphQL Security Tool{RST}
 
 {BO}USAGE:{RST}
-  python gql.py --url <endpoint> [OPTIONS]
+  python main.py --url <endpoint> [OPTIONS]
 
 {BO}CORE OPTIONS:{RST}
   {G}    --introspect{RST}              Test introspection + alias bypass + batching
@@ -1178,7 +1177,7 @@ HELP_TEXT = f"""
   {G}-t, --types{RST}                   List all types grouped by kind
   {G}-s, --sensitive{RST}               Grep for sensitive fields
   {G}-g, --generate{RST}                Auto-generate queries/mutations (nested-aware)
-  {G}    --dbs{RST}                     Wizard mode: list queries and dump selected query templates
+  {G}    --dbs{RST}                     Interactive wizard to dump selected query templates (saved as dbs_wizard in JSON output)
 
 {BO}MODIFIERS:{RST}
   {G}    --url <endpoint>{RST}          GraphQL endpoint (required)
@@ -1190,22 +1189,22 @@ HELP_TEXT = f"""
 
 {BO}EXAMPLES:{RST}
   {DIM}# Full recon: introspection + batching + alias bypass{RST}
-  python gql.py --url https://target.com/graphql --introspect
+  python main.py --url https://target.com/graphql --introspect
 
   {DIM}# Interactive query dump wizard{RST}
-  python gql.py --url https://target.com/graphql --dbs
+  python main.py --url https://target.com/graphql --dbs
 
   {DIM}# Scan sensitive fields with auth token{RST}
-  python gql.py --url https://target.com/graphql -s --token eyJ...
+  python main.py --url https://target.com/graphql -s --token eyJ...
 
   {DIM}# Generate deep nested queries (depth 5){RST}
-  python gql.py --url https://target.com/graphql -g --depth 5
+  python main.py --url https://target.com/graphql -g --depth 5
 
   {DIM}# Full pipeline with WAF evasion delay{RST}
-  python gql.py --url https://target.com/graphql --introspect -q -m -t -s --delay 1.5 --output report.json
+  python main.py --url https://target.com/graphql --introspect -q -m -t -s --delay 1.5 --output report.json
 
   {DIM}# Then launch interactive query dump wizard{RST}
-  python gql.py --url https://target.com/graphql --dbs
+  python main.py --url https://target.com/graphql --dbs
 
 {BO}SENSITIVE CATEGORIES:{RST}
   {R}CRITICAL{RST}  AUTH      — token, jwt, password, secret, apikey
@@ -1268,7 +1267,7 @@ def main():
 
     if not args.url:
         print(f"\n  {R}[✗]{RST} --url is required\n")
-        print(f"  {DIM}Usage: python gql.py --url https://target.com/graphql --help{RST}\n")
+        print(f"  {DIM}Usage: python main.py --url https://target.com/graphql --help{RST}\n")
         sys.exit(1)
 
     print(BANNER)
