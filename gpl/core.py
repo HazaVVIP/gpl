@@ -306,6 +306,7 @@ def cmd_introspect(url: str, token: str = None, delay: float = 0.0):
 
 # ── --queries ──────────────────────────────────────────────────────────────────
 def _render_query_list(query_type_name: str, fields: list):
+    """Render available query operations for a query type."""
     print(f"  {DIM}QueryType: {query_type_name}  |  {len(fields)} operation(s){RST}\n")
 
     for f in fields:
@@ -680,6 +681,7 @@ def schema_to_sdl(schema: dict) -> str:
 
 
 def _build_query_template(schema: dict, field: dict, max_depth: int = 3) -> str:
+    """Build a GraphQL query template for a single query field."""
     args = field.get("args") or []
     arg_def, arg_use = _build_args(args)
 
@@ -699,8 +701,9 @@ def _build_query_template(schema: dict, field: dict, max_depth: int = 3) -> str:
     )
 
 
-def cmd_dbs(url: str, token: str = None, limit: int = 0,
-            delay: float = 0.0) -> dict:
+def cmd_query_wizard(url: str, token: str = None, limit: int = 0,
+                     delay: float = 0.0) -> dict:
+    """Interactive wizard to dump selected query templates."""
     hdr("Available Queries")
     schema = fetch_schema(url, token, delay=delay)
     if not schema:
@@ -754,6 +757,12 @@ def cmd_dbs(url: str, token: str = None, limit: int = 0,
         "query_count": len(fields),
         "queries_dumped": dumps,
     }
+
+
+def cmd_dbs(url: str, token: str = None, limit: int = 0,
+            delay: float = 0.0) -> dict:
+    """Backward-compatible entrypoint for --dbs wizard mode."""
+    return cmd_query_wizard(url, token, limit, delay=delay)
 
 
 # ── --poc-mutation ─────────────────────────────────────────────────────────────
