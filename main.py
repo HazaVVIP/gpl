@@ -589,7 +589,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
             required_marker = f"  {R}*{RST}" if required else ""
             default_value = a.get("defaultValue")
             default_value_str = (f"  {DIM}default={default_value}{RST}"
-                                 if default_value not in (None, "") else "")
+                                 if default_value is not None else "")
             print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}{required_marker}{default_value_str}")
             enum_values = [e["name"] for e in (bt.get("enumValues") or [])] if kind == "ENUM" else []
             if kind == "ENUM":
@@ -766,6 +766,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
             arg_name = a["name"]
             if arg_name == "limit":
                 if limit not in ("all","single"): parts.append(f"limit: {limit}")
+            # Preserve user-provided filter values over auto-generated Drupal bundle filter.
             elif arg_name == "filter" and pat == "drupal" and chosen and arg_name not in arg_vals:
                 b = type_to_bundle(chosen)
                 if b: parts.append(f'filter: {{conditions: [{{field: "type", value: ["{b}"]}}]}}')
