@@ -27,6 +27,8 @@ BANNER = (f"{C}{BO}\n"
     "  \u2588\u2588    \u2588\u2588 \u2588\u2588      \u2588\u2588\n"
     f"   \u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588      \u2588\u2588\u2588\u2588\u2588\u2588\u2588"
     f"{RST}{DIM}  GraphQL Data Dump Tool  |  Authorized Use Only{RST}\n")
+# Used for validating enum literals entered in the wizard.
+ENUM_LITERAL_PATTERN = re.compile(r"^[_A-Za-z][_0-9A-Za-z]*$")
 
 # ── Connection pool ──────────────────────────────────────────────────────────────
 # One persistent HTTPS connection per thread — avoids TCP handshake overhead
@@ -562,39 +564,104 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         print(f"\n  {G}[✓]{RST}  {C}{BO}{fn}{RST}")
         if tgt.get("description"): print(f"       {DIM}{tgt['description']}{RST}")
 
-        # ── required args ──────────────────────────────────────────────────────────
-        arg_vals: dict = {}; cancelled = False
-        req_args = [a for a in (tgt.get("args") or [])
-                    if "!" in resolve_type(a.get("type",{}))]
+        # ── arguments ──────────────────────────────────────────────────────────────
+        arg_vals: dict = {}
+        # Track args that should be emitted as raw GraphQL literals (enums, lists, input objects)
+        raw_args: set[str] = set()
+        cancelled = False
+        all_args = tgt.get("args") or []
+        req_args = [a for a in all_args if "!" in resolve_type(a.get("type",{}))]
+        # limit handled via dedicated prompt
+        opt_args = [a for a in all_args if a not in req_args and a.get("name") != "limit"]
+
+        def collect_arg(a: dict, required: bool) -> None:
+            """Nested helper that fills arg_vals/raw_args and may set cancelled.
+
+            Args:
+                a: GraphQL argument definition dict from introspection.
+                required: Whether the argument must be provided.
+            """
+            nonlocal cancelled
+            at   = resolve_type(a.get("type",{}))
+            base = at.replace("!","").replace("[","").replace("]","").strip()
+            bt   = idx.get(base)
+            kind = bt.get("kind","SCALAR") if bt else "SCALAR"
+            listy = at.strip().startswith("[")
+            required_marker = f"  {R}*{RST}" if required else ""
+            default_value = a.get("defaultValue")
+            default_value_str = (f"  {DIM}default={default_value}{RST}"
+                                 if default_value is not None else "")
+            print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}{required_marker}{default_value_str}")
+            enum_values = [e["name"] for e in (bt.get("enumValues") or [])] if kind == "ENUM" else []
+            if kind == "ENUM":
+                for ei, ev in enumerate(enum_values, 1):
+                    print(f"    {DIM}[{ei}]{RST} {Y}{ev}{RST}")
+            if listy:
+                print(f"    {DIM}Use list literal, e.g., [\"value1\", \"value2\"] {RST}")
+            elif kind == "INPUT_OBJECT":
+                print(f"    {DIM}Use input literal, e.g., {{field: \"value\"}} {RST}")
+            while True:
+                try:    v = input(f"  {DIM}>{RST} ").strip()
+                except (EOFError,KeyboardInterrupt): cancelled = True; return
+                if v.lower() == "cancel": cancelled = True; return
+                if not v:
+                    if required: print(f"  {Y}Required.{RST}"); continue
+                    return
+                if listy:
+                    if v.startswith("[") and v.endswith("]"):
+                        arg_vals[a["name"]] = v
+                        raw_args.add(a["name"])
+                        return
+                    print(f"  {Y}Use [...] for list values.{RST}"); continue
+                if kind == "INPUT_OBJECT":
+                    if v.startswith("{") and v.endswith("}"):
+                        arg_vals[a["name"]] = v
+                        raw_args.add(a["name"])
+                        return
+                    print(f"  {Y}Use {{...}} for input object values.{RST}"); continue
+                if kind == "ENUM":
+                    if v.isdigit():
+                        selected_index = int(v) - 1
+                        if 0 <= selected_index < len(enum_values):
+                            arg_vals[a["name"]] = enum_values[selected_index]
+                            raw_args.add(a["name"])
+                            return
+                        print(f"  {Y}Pick 1–{len(enum_values)}{RST}"); continue
+                    if not enum_values:
+                        if not ENUM_LITERAL_PATTERN.match(v):
+                            print(f"  {Y}Enum literal required (e.g., VALUE_NAME).{RST}"); continue
+                        arg_vals[a["name"]] = v
+                        raw_args.add(a["name"])
+                        return
+                    if v not in enum_values:
+                        print(f"  {Y}Pick one of: {', '.join(enum_values)}{RST}"); continue
+                    arg_vals[a["name"]] = v
+                    raw_args.add(a["name"])
+                    return
+                try:
+                    base_lower = base.lower()
+                    if base_lower in ("int","long"):          arg_vals[a["name"]] = int(v);   return
+                    if base_lower == "float":                  arg_vals[a["name"]] = float(v); return
+                    if base_lower in ("boolean","bool"):
+                        if v.lower() in ("true","1"):  arg_vals[a["name"]] = True;  return
+                        if v.lower() in ("false","0"): arg_vals[a["name"]] = False; return
+                        print(f"  {Y}true or false{RST}"); continue
+                except ValueError: pass
+                arg_vals[a["name"]] = v
+                return
+
         if req_args:
             print(f"\n  {B}━━━ Required Arguments ━━━{RST}")
             for a in req_args:
-                at   = resolve_type(a.get("type",{}))
-                base = at.replace("!","").replace("[","").replace("]","").strip()
-                bt   = idx.get(base); kind = bt.get("kind","SCALAR") if bt else "SCALAR"
-                print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}  {R}*{RST}")
-                if kind == "ENUM":
-                    evs = [e["name"] for e in (bt.get("enumValues") or [])]
-                    for ei,ev in enumerate(evs,1): print(f"    {DIM}[{ei}]{RST} {Y}{ev}{RST}")
-                while True:
-                    try:    v = input(f"  {DIM}>{RST} ").strip()
-                    except (EOFError,KeyboardInterrupt): cancelled=True; break
-                    if v.lower()=="cancel": cancelled=True; break
-                    if not v: print(f"  {Y}Required.{RST}"); continue
-                    if kind=="ENUM" and v.isdigit():
-                        evs=[e["name"] for e in (bt.get("enumValues") or [])]; i2=int(v)-1
-                        if 0<=i2<len(evs): arg_vals[a["name"]]=evs[i2]; break
-                        print(f"  {Y}Pick 1–{len(evs)}{RST}"); continue
-                    try:
-                        bl = base.lower()
-                        if bl in ("int","long"):          arg_vals[a["name"]]=int(v);   break
-                        if bl == "float":                  arg_vals[a["name"]]=float(v); break
-                        if bl in ("boolean","bool"):
-                            if v.lower() in ("true","1"):  arg_vals[a["name"]]=True;  break
-                            if v.lower() in ("false","0"): arg_vals[a["name"]]=False; break
-                            print(f"  {Y}true or false{RST}"); continue
-                    except ValueError: pass
-                    arg_vals[a["name"]]=v; break
+                collect_arg(a, True)
+                if cancelled: break
+        if cancelled: print(f"  {DIM}Cancelled.{RST}"); continue
+
+        if opt_args:
+            print(f"\n  {B}━━━ Optional Arguments ━━━{RST}")
+            print(f"  {DIM}Enter to skip. Type {Y}cancel{RST}{DIM} to go back.{RST}")
+            for a in opt_args:
+                collect_arg(a, False)
                 if cancelled: break
         if cancelled: print(f"  {DIM}Cancelled.{RST}"); continue
 
@@ -697,13 +764,18 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         # ── build & fire ───────────────────────────────────────────────────────────
         parts = []
         for a in (tgt.get("args") or []):
-            if a["name"]=="limit":
+            arg_name = a["name"]
+            if arg_name == "limit":
                 if limit not in ("all","single"): parts.append(f"limit: {limit}")
-            elif a["name"]=="filter" and pat=="drupal" and chosen:
+            # Preserve user-provided filter values over auto-generated Drupal bundle filter.
+            elif arg_name == "filter" and pat == "drupal" and chosen and arg_name not in arg_vals:
                 b = type_to_bundle(chosen)
                 if b: parts.append(f'filter: {{conditions: [{{field: "type", value: ["{b}"]}}]}}')
-            elif a["name"] in arg_vals:
-                parts.append(f"{a['name']}: {json.dumps(arg_vals[a['name']])}")
+            elif arg_name in arg_vals:
+                if arg_name in raw_args:
+                    parts.append(f"{arg_name}: {arg_vals[arg_name]}")
+                else:
+                    parts.append(f"{arg_name}: {json.dumps(arg_vals[arg_name])}")
         arg_s = f"({', '.join(parts)})" if parts else ""
 
         field_lines = "\n".join(f"        {n}" for n in sel)
