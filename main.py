@@ -580,12 +580,13 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
             kind = bt.get("kind","SCALAR") if bt else "SCALAR"
             listy = at.strip().startswith("[")
             req_m = f"  {R}*{RST}" if required else ""
-            dv = a.get("defaultValue")
-            dv_s = f"  {DIM}default={dv}{RST}" if dv not in (None, "") else ""
-            print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}{req_m}{dv_s}")
-            evs = [e["name"] for e in (bt.get("enumValues") or [])] if kind == "ENUM" else []
+            default_value = a.get("defaultValue")
+            default_value_str = (f"  {DIM}default={default_value}{RST}"
+                                 if default_value not in (None, "") else "")
+            print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}{req_m}{default_value_str}")
+            enum_values = [e["name"] for e in (bt.get("enumValues") or [])] if kind == "ENUM" else []
             if kind == "ENUM":
-                for ei, ev in enumerate(evs, 1):
+                for ei, ev in enumerate(enum_values, 1):
                     print(f"    {DIM}[{ei}]{RST} {Y}{ev}{RST}")
             if listy:
                 print(f"    {DIM}Use list literal, e.g., [...] {RST}")
@@ -612,14 +613,14 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                     print(f"  {Y}Use {{...}} for input object values.{RST}"); continue
                 if kind == "ENUM":
                     if v.isdigit():
-                        i2 = int(v) - 1
-                        if 0 <= i2 < len(evs):
-                            arg_vals[a["name"]] = evs[i2]
+                        selected_index = int(v) - 1
+                        if 0 <= selected_index < len(enum_values):
+                            arg_vals[a["name"]] = enum_values[selected_index]
                             raw_args.add(a["name"])
                             return
-                        print(f"  {Y}Pick 1–{len(evs)}{RST}"); continue
-                    if evs and v not in evs:
-                        print(f"  {Y}Pick one of: {', '.join(evs)}{RST}"); continue
+                        print(f"  {Y}Pick 1–{len(enum_values)}{RST}"); continue
+                    if enum_values and v not in enum_values:
+                        print(f"  {Y}Pick one of: {', '.join(enum_values)}{RST}"); continue
                     arg_vals[a["name"]] = v
                     raw_args.add(a["name"])
                     return
