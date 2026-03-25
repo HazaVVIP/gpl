@@ -564,6 +564,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
 
         # ── arguments ──────────────────────────────────────────────────────────────
         arg_vals: dict = {}
+        # Track args that should be emitted as raw GraphQL literals (enums, lists, input objects)
         raw_args: set[str] = set()
         cancelled = False
         all_args = tgt.get("args") or []
@@ -587,9 +588,9 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                 for ei, ev in enumerate(evs, 1):
                     print(f"    {DIM}[{ei}]{RST} {Y}{ev}{RST}")
             if listy:
-                print(f"    {DIM}Use list literal, e.g. [...] {RST}")
+                print(f"    {DIM}Use list literal, e.g., [...] {RST}")
             elif kind == "INPUT_OBJECT":
-                print(f"    {DIM}Use input literal, e.g. {{...}} {RST}")
+                print(f"    {DIM}Use input literal, e.g., {{...}} {RST}")
             while True:
                 try:    v = input(f"  {DIM}>{RST} ").strip()
                 except (EOFError,KeyboardInterrupt): cancelled = True; return
@@ -617,6 +618,8 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                             raw_args.add(a["name"])
                             return
                         print(f"  {Y}Pick 1–{len(evs)}{RST}"); continue
+                    if evs and v not in evs:
+                        print(f"  {Y}Pick one of: {', '.join(evs)}{RST}"); continue
                     arg_vals[a["name"]] = v
                     raw_args.add(a["name"])
                     return
