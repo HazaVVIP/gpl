@@ -572,7 +572,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         # limit handled via dedicated prompt
         opt_args = [a for a in all_args if a not in req_args and a.get("name") != "limit"]
 
-        def _collect_arg(a: dict, required: bool) -> None:
+        def collect_arg(a: dict, required: bool) -> None:
             nonlocal cancelled
             at   = resolve_type(a.get("type",{}))
             base = at.replace("!","").replace("[","").replace("]","").strip()
@@ -600,13 +600,13 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                     if required: print(f"  {Y}Required.{RST}"); continue
                     return
                 if listy:
-                    if v.startswith("["):
+                    if v.startswith("[") and v.endswith("]"):
                         arg_vals[a["name"]] = v
                         raw_args.add(a["name"])
                         return
                     print(f"  {Y}Use [...] for list values.{RST}"); continue
                 if kind == "INPUT_OBJECT":
-                    if v.startswith("{"):
+                    if v.startswith("{") and v.endswith("}"):
                         arg_vals[a["name"]] = v
                         raw_args.add(a["name"])
                         return
@@ -619,6 +619,12 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                             raw_args.add(a["name"])
                             return
                         print(f"  {Y}Pick 1–{len(enum_values)}{RST}"); continue
+                    if not enum_values:
+                        if not re.match(r"^[_A-Za-z][_0-9A-Za-z]*$", v):
+                            print(f"  {Y}Enum literal required (e.g., VALUE_NAME).{RST}"); continue
+                        arg_vals[a["name"]] = v
+                        raw_args.add(a["name"])
+                        return
                     if enum_values and v not in enum_values:
                         print(f"  {Y}Pick one of: {', '.join(enum_values)}{RST}"); continue
                     arg_vals[a["name"]] = v
@@ -639,7 +645,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         if req_args:
             print(f"\n  {B}━━━ Required Arguments ━━━{RST}")
             for a in req_args:
-                _collect_arg(a, True)
+                collect_arg(a, True)
                 if cancelled: break
         if cancelled: print(f"  {DIM}Cancelled.{RST}"); continue
 
@@ -647,7 +653,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
             print(f"\n  {B}━━━ Optional Arguments ━━━{RST}")
             print(f"  {DIM}Enter to skip. Type {Y}cancel{RST}{DIM} to go back.{RST}")
             for a in opt_args:
-                _collect_arg(a, False)
+                collect_arg(a, False)
                 if cancelled: break
         if cancelled: print(f"  {DIM}Cancelled.{RST}"); continue
 
