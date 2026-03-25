@@ -27,6 +27,7 @@ BANNER = (f"{C}{BO}\n"
     "  \u2588\u2588    \u2588\u2588 \u2588\u2588      \u2588\u2588\n"
     f"   \u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588      \u2588\u2588\u2588\u2588\u2588\u2588\u2588"
     f"{RST}{DIM}  GraphQL Data Dump Tool  |  Authorized Use Only{RST}\n")
+# Used for validating enum literals entered in the wizard.
 ENUM_LITERAL_PATTERN = re.compile(r"^[_A-Za-z][_0-9A-Za-z]*$")
 
 # ── Connection pool ──────────────────────────────────────────────────────────────
@@ -596,9 +597,9 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                 for ei, ev in enumerate(enum_values, 1):
                     print(f"    {DIM}[{ei}]{RST} {Y}{ev}{RST}")
             if listy:
-                print(f"    {DIM}Use list literal, e.g., [...] {RST}")
+                print(f"    {DIM}Use list literal, e.g., [\"value1\", \"value2\"] {RST}")
             elif kind == "INPUT_OBJECT":
-                print(f"    {DIM}Use input literal, e.g., {{...}} {RST}")
+                print(f"    {DIM}Use input literal, e.g., {{field: \"value\"}} {RST}")
             while True:
                 try:    v = input(f"  {DIM}>{RST} ").strip()
                 except (EOFError,KeyboardInterrupt): cancelled = True; return
