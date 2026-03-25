@@ -574,7 +574,12 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         opt_args = [a for a in all_args if a not in req_args and a.get("name") != "limit"]
 
         def collect_arg(a: dict, required: bool) -> None:
-            """Collect a GraphQL argument value into arg_vals/raw_args."""
+            """Nested helper that fills arg_vals/raw_args and may set cancelled.
+
+            Args:
+                a: GraphQL argument definition dict from introspection.
+                required: Whether the argument must be provided.
+            """
             nonlocal cancelled
             at   = resolve_type(a.get("type",{}))
             base = at.replace("!","").replace("[","").replace("]","").strip()
@@ -627,7 +632,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                         arg_vals[a["name"]] = v
                         raw_args.add(a["name"])
                         return
-                    if enum_values and v not in enum_values:
+                    if v not in enum_values:
                         print(f"  {Y}Pick one of: {', '.join(enum_values)}{RST}"); continue
                     arg_vals[a["name"]] = v
                     raw_args.add(a["name"])
