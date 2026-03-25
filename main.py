@@ -568,6 +568,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         cancelled = False
         all_args = tgt.get("args") or []
         req_args = [a for a in all_args if "!" in resolve_type(a.get("type",{}))]
+        # limit handled via dedicated prompt
         opt_args = [a for a in all_args if a not in req_args and a.get("name") != "limit"]
 
         def _collect_arg(a: dict, required: bool) -> None:
@@ -581,12 +582,14 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
             dv = a.get("defaultValue")
             dv_s = f"  {DIM}default={dv}{RST}" if dv not in (None, "") else ""
             print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}{req_m}{dv_s}")
+            evs = [e["name"] for e in (bt.get("enumValues") or [])] if kind == "ENUM" else []
             if kind == "ENUM":
-                evs = [e["name"] for e in (bt.get("enumValues") or [])]
                 for ei, ev in enumerate(evs, 1):
                     print(f"    {DIM}[{ei}]{RST} {Y}{ev}{RST}")
-            if kind == "INPUT_OBJECT" or listy:
-                print(f"    {DIM}Use GraphQL literal, e.g. {{...}} or [...] {RST}")
+            if listy:
+                print(f"    {DIM}Use list literal, e.g. [...] {RST}")
+            elif kind == "INPUT_OBJECT":
+                print(f"    {DIM}Use input literal, e.g. {{...}} {RST}")
             while True:
                 try:    v = input(f"  {DIM}>{RST} ").strip()
                 except (EOFError,KeyboardInterrupt): cancelled = True; return
@@ -606,13 +609,8 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                         raw_args.add(a["name"])
                         return
                     print(f"  {Y}Use {{...}} for input object values.{RST}"); continue
-                if v.startswith("{") or v.startswith("["):
-                    arg_vals[a["name"]] = v
-                    raw_args.add(a["name"])
-                    return
                 if kind == "ENUM":
                     if v.isdigit():
-                        evs = [e["name"] for e in (bt.get("enumValues") or [])]
                         i2 = int(v) - 1
                         if 0 <= i2 < len(evs):
                             arg_vals[a["name"]] = evs[i2]
