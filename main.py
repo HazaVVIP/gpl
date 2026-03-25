@@ -27,6 +27,7 @@ BANNER = (f"{C}{BO}\n"
     "  \u2588\u2588    \u2588\u2588 \u2588\u2588      \u2588\u2588\n"
     f"   \u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588      \u2588\u2588\u2588\u2588\u2588\u2588\u2588"
     f"{RST}{DIM}  GraphQL Data Dump Tool  |  Authorized Use Only{RST}\n")
+ENUM_LITERAL_RE = re.compile(r"^[_A-Za-z][_0-9A-Za-z]*$")
 
 # ── Connection pool ──────────────────────────────────────────────────────────────
 # One persistent HTTPS connection per thread — avoids TCP handshake overhead
@@ -573,6 +574,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         opt_args = [a for a in all_args if a not in req_args and a.get("name") != "limit"]
 
         def collect_arg(a: dict, required: bool) -> None:
+            """Collect a GraphQL argument value into arg_vals/raw_args."""
             nonlocal cancelled
             at   = resolve_type(a.get("type",{}))
             base = at.replace("!","").replace("[","").replace("]","").strip()
@@ -620,7 +622,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                             return
                         print(f"  {Y}Pick 1–{len(enum_values)}{RST}"); continue
                     if not enum_values:
-                        if not re.match(r"^[_A-Za-z][_0-9A-Za-z]*$", v):
+                        if not ENUM_LITERAL_RE.match(v):
                             print(f"  {Y}Enum literal required (e.g., VALUE_NAME).{RST}"); continue
                         arg_vals[a["name"]] = v
                         raw_args.add(a["name"])
@@ -756,16 +758,17 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
         # ── build & fire ───────────────────────────────────────────────────────────
         parts = []
         for a in (tgt.get("args") or []):
-            if a["name"]=="limit":
+            arg_name = a["name"]
+            if arg_name == "limit":
                 if limit not in ("all","single"): parts.append(f"limit: {limit}")
-            elif a["name"]=="filter" and pat=="drupal" and chosen and a["name"] not in arg_vals:
+            elif arg_name == "filter" and pat == "drupal" and chosen and arg_name not in arg_vals:
                 b = type_to_bundle(chosen)
                 if b: parts.append(f'filter: {{conditions: [{{field: "type", value: ["{b}"]}}]}}')
-            elif a["name"] in arg_vals:
-                if a["name"] in raw_args:
-                    parts.append(f"{a['name']}: {arg_vals[a['name']]}")
+            elif arg_name in arg_vals:
+                if arg_name in raw_args:
+                    parts.append(f"{arg_name}: {arg_vals[arg_name]}")
                 else:
-                    parts.append(f"{a['name']}: {json.dumps(arg_vals[a['name']])}")
+                    parts.append(f"{arg_name}: {json.dumps(arg_vals[arg_name])}")
         arg_s = f"({', '.join(parts)})" if parts else ""
 
         field_lines = "\n".join(f"        {n}" for n in sel)
