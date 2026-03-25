@@ -27,7 +27,7 @@ BANNER = (f"{C}{BO}\n"
     "  \u2588\u2588    \u2588\u2588 \u2588\u2588      \u2588\u2588\n"
     f"   \u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588      \u2588\u2588\u2588\u2588\u2588\u2588\u2588"
     f"{RST}{DIM}  GraphQL Data Dump Tool  |  Authorized Use Only{RST}\n")
-ENUM_LITERAL_RE = re.compile(r"^[_A-Za-z][_0-9A-Za-z]*$")
+ENUM_LITERAL_PATTERN = re.compile(r"^[_A-Za-z][_0-9A-Za-z]*$")
 
 # ── Connection pool ──────────────────────────────────────────────────────────────
 # One persistent HTTPS connection per thread — avoids TCP handshake overhead
@@ -586,11 +586,11 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
             bt   = idx.get(base)
             kind = bt.get("kind","SCALAR") if bt else "SCALAR"
             listy = at.strip().startswith("[")
-            req_m = f"  {R}*{RST}" if required else ""
+            required_marker = f"  {R}*{RST}" if required else ""
             default_value = a.get("defaultValue")
             default_value_str = (f"  {DIM}default={default_value}{RST}"
                                  if default_value not in (None, "") else "")
-            print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}{req_m}{default_value_str}")
+            print(f"  {G}{a['name']}{RST}  {DIM}({at}){RST}{required_marker}{default_value_str}")
             enum_values = [e["name"] for e in (bt.get("enumValues") or [])] if kind == "ENUM" else []
             if kind == "ENUM":
                 for ei, ev in enumerate(enum_values, 1):
@@ -627,7 +627,7 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                             return
                         print(f"  {Y}Pick 1–{len(enum_values)}{RST}"); continue
                     if not enum_values:
-                        if not ENUM_LITERAL_RE.match(v):
+                        if not ENUM_LITERAL_PATTERN.match(v):
                             print(f"  {Y}Enum literal required (e.g., VALUE_NAME).{RST}"); continue
                         arg_vals[a["name"]] = v
                         raw_args.add(a["name"])
@@ -638,10 +638,10 @@ async def _dbs_async(url: str, token: Optional[str], delay: float,
                     raw_args.add(a["name"])
                     return
                 try:
-                    bl = base.lower()
-                    if bl in ("int","long"):          arg_vals[a["name"]] = int(v);   return
-                    if bl == "float":                  arg_vals[a["name"]] = float(v); return
-                    if bl in ("boolean","bool"):
+                    base_lower = base.lower()
+                    if base_lower in ("int","long"):          arg_vals[a["name"]] = int(v);   return
+                    if base_lower == "float":                  arg_vals[a["name"]] = float(v); return
+                    if base_lower in ("boolean","bool"):
                         if v.lower() in ("true","1"):  arg_vals[a["name"]] = True;  return
                         if v.lower() in ("false","0"): arg_vals[a["name"]] = False; return
                         print(f"  {Y}true or false{RST}"); continue
