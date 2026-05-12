@@ -211,7 +211,7 @@ def resolve_type(t: dict, _d: int = 0) -> str:
     return n or "Unknown"
 
 def type_to_bundle(ctype: str) -> str:
-    """NodeErrdOrganization → errd_organization"""
+    """NodeUserOrganization → user_organization"""
     name = ctype
     for pfx in ("Node","TaxonomyTerm","BlockContent","Comment","ContactMessage",
                 "WebformSubmission","FeedsFeed","MenuLinkContent","Shortcut",
