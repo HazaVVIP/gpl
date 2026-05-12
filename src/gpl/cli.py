@@ -892,7 +892,7 @@ def main():
     p.add_argument("--help", action="store_true")
     a = p.parse_args()
 
-    if a.help or len(sys.argv) == 1:
+    if a.help or (not a.url and not any([a.queries, a.mutations, a.types, a.dbs, a.scan])):
         print(BANNER); print(HELP); sys.exit(0)
     if not a.url:
         print(f"\n  {R}[✗]{RST} --url is required\n"); sys.exit(1)

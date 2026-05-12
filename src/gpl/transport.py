@@ -94,7 +94,13 @@ def post_graphql(
             if not body:
                 return {"_err": "empty response"}
             return json.loads(body)
-        except Exception as exc:  # pragma: no cover - branch tested via monkeypatch
+        except (
+            OSError,
+            http.client.HTTPException,
+            TimeoutError,
+            ssl.SSLError,
+            json.JSONDecodeError,
+        ) as exc:  # pragma: no cover - branch tested via monkeypatch
             last_error = exc
             if attempt < cfg.retries:
                 time.sleep(cfg.backoff_seconds * (attempt + 1))
