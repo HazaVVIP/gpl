@@ -45,5 +45,5 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-q --maxfail=1 --disable-warnings --cov=src/gpl --cov-report=term-missing --cov-fail-under=5"
+addopts = "-q --maxfail=1 --disable-warnings --cov=src/gpl --cov-report=term-missing --cov-fail-under=10"
 testpaths = ["tests"]

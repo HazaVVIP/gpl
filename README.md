@@ -67,7 +67,7 @@ pytest
 ```
 
 - CI runs compile + tests on Python 3.10/3.11/3.12.
-- Coverage threshold is enforced at 70%.
+- Coverage threshold is enforced at 10% for the initial baseline and will be raised in upcoming releases.
 
 ## Update plan (implemented in this version)
 
