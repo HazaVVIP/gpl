@@ -127,4 +127,4 @@ def unbounded_list_queries(schema: dict) -> list[str]:
         arg_names = {a.get("name") for a in (q.get("args") or [])}
         if "limit" not in arg_names and "first" not in arg_names and "last" not in arg_names:
             risky.append(q.get("name", ""))
-    return sorted(set([r for r in risky if r]))
+    return sorted({r for r in risky if r})

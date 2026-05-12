@@ -868,9 +868,13 @@ HELP = f"""
 
 def main():
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument("--url"); p.add_argument("--token"); p.add_argument("--output")
-    p.add_argument("--api-key"); p.add_argument("--api-key-header", default="X-API-Key")
-    p.add_argument("--cookie"); p.add_argument("--ca-file")
+    p.add_argument("--url")
+    p.add_argument("--token")
+    p.add_argument("--output")
+    p.add_argument("--api-key")
+    p.add_argument("--api-key-header", default="X-API-Key")
+    p.add_argument("--cookie")
+    p.add_argument("--ca-file")
     p.add_argument("--mode", choices=["blackbox", "greybox", "authenticated"], default="blackbox")
     p.add_argument("--delay", type=float, default=0.0)
     p.add_argument("--concurrency", type=int, default=8)
