@@ -6,6 +6,13 @@ The format is based on Keep a Changelog and this project uses Semantic Versionin
 
 ## [Unreleased]
 
+### Added
+- Enterprise scan mode (`--scan`) with initial pentest checks and policy gating (`--fail-on`)
+- Modular scan foundation: transport, schema analysis, findings model, checks, engine, reporting
+- JSON and SARIF report export for scan results (`--report-json`, `--report-sarif`)
+- CLI auth and transport options for scan mode (`--api-key`, `--api-key-header`, `--cookie`, `--ca-file`, `--insecure`, `--retries`)
+- New tests for scan engine, reporting, and policy-exit behavior
+
 ## [0.1.0] - 2026-05-12
 
 ### Added

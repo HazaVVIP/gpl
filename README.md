@@ -11,6 +11,7 @@ GPL (GraphQL Probe & Loader) is a Python CLI for GraphQL schema introspection an
   2. Enumerate schema types
   3. Run guided data-dump exploration for target entities
   4. Export query results to JSON
+  5. Run enterprise scan mode with policy gates and JSON/SARIF reports
 
 ### MVP boundaries
 
@@ -42,6 +43,7 @@ gpl --url https://target.com/graphql -q
 gpl --url https://target.com/graphql -m
 gpl --url https://target.com/graphql -t
 gpl --url https://target.com/graphql --dbs --concurrency 16 --output dump.json
+gpl --url https://target.com/graphql --scan --mode authenticated --fail-on high --report-json report.json --report-sarif report.sarif
 ```
 
 ## Project structure
@@ -51,7 +53,13 @@ gpl --url https://target.com/graphql --dbs --concurrency 16 --output dump.json
 ├── src/gpl/
 │   ├── __init__.py
 │   ├── __main__.py
-│   └── cli.py
+│   ├── checks/
+│   ├── cli.py
+│   ├── engine.py
+│   ├── models.py
+│   ├── reporting.py
+│   ├── schema.py
+│   └── transport.py
 ├── tests/
 ├── .github/workflows/
 ├── main.py
@@ -68,6 +76,21 @@ pytest
 
 - CI runs compile + tests on Python 3.10/3.11/3.12.
 - Coverage threshold is enforced at 10% for the initial baseline and will be raised in upcoming releases.
+
+## Enterprise scan mode (`--scan`)
+
+- Secure transport defaults for scan mode: TLS verification ON by default.
+- Supports auth inputs: Bearer token (`--token`), API key (`--api-key` + `--api-key-header`), and cookie (`--cookie`).
+- Built-in initial checks:
+  - Introspection exposure
+  - Potentially dangerous mutations
+  - Sensitive field-name heuristics
+  - Unbounded list query exposure
+- Reporting formats:
+  - JSON (`--report-json`)
+  - SARIF (`--report-sarif`) for CI/security tooling integration
+- Policy gate:
+  - `--fail-on {none|low|medium|high|critical}` to return non-zero exit when threshold is met.
 
 ## Update plan (implemented in this version)
 

@@ -15,6 +15,9 @@ import http.client, urllib.parse, threading
 import concurrent.futures
 from typing import Optional
 
+from gpl.engine import run_scan
+from gpl.reporting import write_json_report, write_sarif_report
+
 logger = logging.getLogger("gpl")
 
 # ── ANSI ────────────────────────────────────────────────────────────────────────
@@ -765,6 +768,66 @@ def cmd_dbs(url: str, token: Optional[str] = None, delay: float = 0.0,
             output_path: Optional[str] = None, concurrency: int = 8) -> dict:
     return asyncio.run(_dbs_async(url, token, delay, output_path, concurrency))
 
+
+def cmd_scan(
+    url: str,
+    mode: str = "blackbox",
+    safe_mode: bool = True,
+    token: Optional[str] = None,
+    api_key: Optional[str] = None,
+    api_key_header: str = "X-API-Key",
+    cookie: Optional[str] = None,
+    ca_file: Optional[str] = None,
+    insecure: bool = False,
+    retries: int = 1,
+    delay: float = 0.0,
+    report_json: Optional[str] = None,
+    report_sarif: Optional[str] = None,
+    fail_on: str = "none",
+) -> int:
+    hdr("Enterprise GraphQL Pentest Scan")
+    result = run_scan(
+        url=url,
+        mode=mode,
+        safe_mode=safe_mode,
+        token=token,
+        api_key=api_key,
+        api_key_header=api_key_header,
+        cookie=cookie,
+        ca_file=ca_file,
+        verify_tls=not insecure,
+        retries=retries,
+        delay=delay,
+    )
+
+    print(f"  {BO}Mode      :{RST} {C}{result.mode}{RST}")
+    print(f"  {BO}Safe mode :{RST} {G if result.safe_mode else Y}{result.safe_mode}{RST}")
+    print(f"  {BO}TLS       :{RST} {G if not insecure else Y}{'verified' if not insecure else 'insecure'}{RST}")
+    print(f"  {BO}Findings  :{RST} {Y}{len(result.findings)}{RST}")
+
+    if result.findings:
+        print()
+        for i, f in enumerate(result.findings, 1):
+            sev = f.severity.upper()
+            col = {"critical": R, "high": R, "medium": Y, "low": C}.get(f.severity, W)
+            print(f"  {DIM}[{i:02d}]{RST} {col}{sev:<8}{RST} {BO}{f.title}{RST}")
+            print(f"       {DIM}{f.rule_id}{RST} - {f.description}")
+
+    if report_json:
+        out = write_json_report(result, report_json)
+        print(f"\n  {G}[✓]{RST} JSON report saved → {C}{out}{RST}")
+    if report_sarif:
+        out = write_sarif_report(result, report_sarif)
+        print(f"  {G}[✓]{RST} SARIF report saved → {C}{out}{RST}")
+
+    if result.fails_policy(fail_on):
+        print(f"\n  {R}[✗]{RST} Policy failed: threshold={fail_on}, max_severity={result.max_severity()}")
+        return 2
+
+    print(f"\n  {G}[✓]{RST} Scan complete")
+    return 0
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────────
 HELP = f"""
 {C}{BO}gpl — GraphQL Data Dump Tool{RST}
@@ -772,52 +835,98 @@ HELP = f"""
 {BO}Usage:{RST}  gpl --url <endpoint> [OPTIONS]
 
 {BO}Options:{RST}
-  {G}-q, --queries{RST}          List all queries
-  {G}-m, --mutations{RST}        List all mutations
-  {G}-t, --types{RST}            List schema types
-  {G}    --dbs{RST}              Interactive data dump wizard
+  {G}-q, --queries{RST}             List all queries
+  {G}-m, --mutations{RST}           List all mutations
+  {G}-t, --types{RST}               List schema types
+  {G}    --dbs{RST}                 Interactive data dump wizard
+  {G}    --scan{RST}                Enterprise pentest scan mode
 
-  {G}    --url <endpoint>{RST}        Target GraphQL endpoint  (required)
-  {G}    --token <token>{RST}         Bearer auth token
-  {G}    --delay <secs>{RST}          Delay between requests  (default: 0)
-  {G}    --concurrency <n>{RST}       Parallel count queries  (default: 8)
-  {G}    --output <file>{RST}         Save session results to JSON
+  {G}    --url <endpoint>{RST}      Target GraphQL endpoint  (required)
+  {G}    --token <token>{RST}       Bearer auth token
+  {G}    --api-key <value>{RST}     API key value
+  {G}    --api-key-header <name>{RST} API key header name (default: X-API-Key)
+  {G}    --cookie <value>{RST}      Cookie header value
+  {G}    --mode <name>{RST}         Scan mode: blackbox|greybox|authenticated
+  {G}    --unsafe{RST}              Disable safe mode checks guard
+
+  {G}    --delay <secs>{RST}        Delay between requests  (default: 0)
+  {G}    --concurrency <n>{RST}     Parallel count queries  (default: 8)
+  {G}    --retries <n>{RST}         Retry count for scan transport
+  {G}    --ca-file <path>{RST}      Custom CA bundle for TLS verification
+  {G}    --insecure{RST}            Disable TLS verification (not recommended)
+
+  {G}    --output <file>{RST}       Save --dbs session results to JSON
+  {G}    --report-json <file>{RST}  Save --scan report as JSON
+  {G}    --report-sarif <file>{RST} Save --scan report as SARIF
+  {G}    --fail-on <sev>{RST}       Policy gate severity: none|low|medium|high|critical
 
 {BO}Examples:{RST}
   gpl --url https://target.com/graphql -q
-  gpl --url https://target.com/graphql --dbs
   gpl --url https://target.com/graphql --dbs --concurrency 16 --output dump.json
+  gpl --url https://target.com/graphql --scan --mode authenticated --fail-on high
 """
 
 def main():
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument("--url");  p.add_argument("--token"); p.add_argument("--output")
-    p.add_argument("--delay",       type=float, default=0.0)
-    p.add_argument("--concurrency", type=int,   default=8)
-    p.add_argument("-q","--queries",   action="store_true")
-    p.add_argument("-m","--mutations", action="store_true")
-    p.add_argument("-t","--types",     action="store_true")
-    p.add_argument("--dbs",            action="store_true")
-    p.add_argument("--help",           action="store_true")
+    p.add_argument("--url"); p.add_argument("--token"); p.add_argument("--output")
+    p.add_argument("--api-key"); p.add_argument("--api-key-header", default="X-API-Key")
+    p.add_argument("--cookie"); p.add_argument("--ca-file")
+    p.add_argument("--mode", choices=["blackbox", "greybox", "authenticated"], default="blackbox")
+    p.add_argument("--delay", type=float, default=0.0)
+    p.add_argument("--concurrency", type=int, default=8)
+    p.add_argument("--retries", type=int, default=1)
+    p.add_argument("--report-json")
+    p.add_argument("--report-sarif")
+    p.add_argument("--fail-on", choices=["none", "low", "medium", "high", "critical"], default="none")
+    p.add_argument("--insecure", action="store_true")
+    p.add_argument("--unsafe", action="store_true")
+    p.add_argument("-q", "--queries", action="store_true")
+    p.add_argument("-m", "--mutations", action="store_true")
+    p.add_argument("-t", "--types", action="store_true")
+    p.add_argument("--dbs", action="store_true")
+    p.add_argument("--scan", action="store_true")
+    p.add_argument("--help", action="store_true")
     a = p.parse_args()
 
-    if a.help or len(sys.argv)==1:
+    if a.help or len(sys.argv) == 1:
         print(BANNER); print(HELP); sys.exit(0)
     if not a.url:
         print(f"\n  {R}[✗]{RST} --url is required\n"); sys.exit(1)
 
     print(BANNER)
+    auth_enabled = bool(a.token or a.api_key or a.cookie)
     print(f"  {BO}Target :{RST} {C}{a.url}{RST}")
-    print(f"  {BO}Auth   :{RST} {'Bearer token provided' if a.token else f'{DIM}none{RST}'}")
-    if a.delay:       print(f"  {BO}Delay  :{RST} {Y}{a.delay}s{RST}")
+    print(f"  {BO}Auth   :{RST} {'provided' if auth_enabled else f'{DIM}none{RST}'}")
+    if a.delay: print(f"  {BO}Delay  :{RST} {Y}{a.delay}s{RST}")
     if a.concurrency != 8: print(f"  {BO}Workers:{RST} {Y}{a.concurrency}{RST}")
+    if a.insecure: print(f"  {BO}TLS    :{RST} {Y}insecure (verification disabled){RST}")
     print(f"  {BO}Time   :{RST} {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-    if a.queries:   cmd_queries(a.url, a.token, delay=a.delay)
+    if a.queries: cmd_queries(a.url, a.token, delay=a.delay)
     if a.mutations: cmd_mutations(a.url, a.token, delay=a.delay)
-    if a.types:     cmd_types(a.url, a.token, delay=a.delay)
-    if a.dbs:       cmd_dbs(a.url, a.token, delay=a.delay,
-                            output_path=a.output, concurrency=a.concurrency)
+    if a.types: cmd_types(a.url, a.token, delay=a.delay)
+    if a.dbs:
+        cmd_dbs(a.url, a.token, delay=a.delay, output_path=a.output, concurrency=a.concurrency)
+    rc = 0
+    if a.scan:
+        rc = cmd_scan(
+            url=a.url,
+            mode=a.mode,
+            safe_mode=not a.unsafe,
+            token=a.token,
+            api_key=a.api_key,
+            api_key_header=a.api_key_header,
+            cookie=a.cookie,
+            ca_file=a.ca_file,
+            insecure=a.insecure,
+            retries=a.retries,
+            delay=a.delay,
+            report_json=a.report_json,
+            report_sarif=a.report_sarif,
+            fail_on=a.fail_on,
+        )
+    if rc:
+        sys.exit(rc)
 
 if __name__ == "__main__":
     main()
